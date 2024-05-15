@@ -31,7 +31,7 @@ class SessionManager:
         self.session_maker = session_maker
         
     @contextmanager
-    def session_manager(self, auto_commit: bool=False, reload_after_commit: bool=None, verbose: Union[int, bool]=logging.ERROR):
+    def session_manager(self, auto_commit: bool=False, reload_after_commit: bool=None, raise_error_types: Union[Exception, tuple[Exception]]=None, raise_on_error: bool=False, verbose: Union[int, bool]=logging.ERROR):
         """
         Context manager to manage the session for the database operations.
 
@@ -40,6 +40,8 @@ class SessionManager:
         args:
             auto_commit (bool): If True, the session will be committed after the function is called and all the attributes of the session. Defaults to False.
             reload_after_commit (bool): If True, all the objects in the session will be reloaded after the commit. Defaults to auto_commit. If auto_commit is False, this parameter is ignored.
+            raise_error_types (Union[Exception, tuple[Exception]]): If an exception of this type is raised, the error will be raised after the session is rolled back. Defaults to None.
+            raise_on_error (bool): If True, the exception will be raised after the session is rolled back. Defaults to False.
             verbose (Union[int, bool]): If True, the logging level will be set to logging.INFO. If False, the logging level will be set to logging.ERROR. If an int, the logging level will be set to that value. Defaults to logging.ERROR.
 
 
@@ -75,15 +77,29 @@ class SessionManager:
 
         try:
             yield session
-        except:
+        except raise_error_types as e:
+                    logging.info("rolling back session...")
+                    session.rollback()
+                    session.close()
+                    raise e
+                
+                
+        except Exception as e:
             logging.info("rolling back session...")
             session.rollback()
             session.close()
+                    
+            if raise_on_error:
+                raise e
+                    
+            # print the stack trace
+            import traceback
+            traceback.print_exc()
         finally:
             self.__cleanup_session__(session, auto_commit, reload_after_commit, verbose)
 
 
-    def session_management(self, auto_commit: bool=False, reload_after_commit: bool=None, verbose: Union[int, bool]=logging.ERROR):
+    def session_management(self, auto_commit: bool=False, reload_after_commit: bool=None, raise_error_types: Union[Exception, tuple[Exception], None]= None, raise_on_error: bool=False, verbose: Union[int, bool]=logging.ERROR):
         """
         Decorator to manage the session for the database operations.
 
@@ -92,6 +108,8 @@ class SessionManager:
         args:
             auto_commit (bool): If True, the session will be committed after the function is called and all the attributes of the session. Defaults to False.
             reload_after_commit (bool): If True, all the objects in the session will be reloaded after the commit. Defaults to auto_commit. If auto_commit is False, this parameter is ignored.
+            raise_error_types (Union[Exception, tuple[Exception]]): If an exception of this type is raised, the error will be raised after the session is rolled back. Defaults to None.
+            raise_on_error (bool): If True, the exception will be raised after the session is rolled back. Defaults to False.
             verbose (Union[int, bool]): If True, the logging level will be set to logging.INFO. If False, the logging level will be set to logging.ERROR. If an int, the logging level will be set to that value. Defaults to logging.ERROR.
 
 
@@ -135,10 +153,26 @@ class SessionManager:
                     kwargs["session"] = session
                     result = func(*args, **kwargs)
                     return result
-                except:
+                except raise_error_types as e:
                     logging.info("rolling back session...")
                     session.rollback()
                     session.close()
+                    raise e
+                
+                
+                except Exception as e:
+                    logging.info("rolling back session...")
+                    session.rollback()
+                    session.close()
+                    
+                    if raise_on_error:
+                        raise e
+                    
+                    # print the stack trace
+                    import traceback
+                    traceback_str = traceback.format_exc()
+                    logging.error(traceback_str)
+                    
                 finally:
                     self.__cleanup_session__(session, auto_commit, reload_after_commit, verbose)
                         
