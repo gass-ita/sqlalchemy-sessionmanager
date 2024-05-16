@@ -31,7 +31,7 @@ class SessionManager:
         self.session_maker = session_maker
         
     @contextmanager
-    def session_manager(self, auto_commit: bool=False, reload_after_commit: bool=None, raise_error_types: Union[Exception, tuple[Exception]]=None, raise_on_error: bool=False, verbose: Union[int, bool]=logging.ERROR):
+    def session_manager(self, auto_commit: bool=False, reload_after_commit: bool=None, raise_error_types: Union[BaseException, tuple[BaseException]]=None, raise_on_error: bool=False, verbose: Union[int, bool]=logging.ERROR):
         """
         Context manager to manage the session for the database operations.
 
@@ -77,17 +77,14 @@ class SessionManager:
 
         try:
             yield session
-        except raise_error_types as e:
-                    logging.info("rolling back session...")
-                    session.rollback()
-                    session.close()
-                    raise e
-                
-                
-        except Exception as e:
+        
+        except BaseException as e: 
             logging.info("rolling back session...")
             session.rollback()
             session.close()
+            
+            if raise_error_types and isinstance(e, raise_error_types):
+                raise e
                     
             if raise_on_error:
                 raise e
@@ -95,6 +92,7 @@ class SessionManager:
             # print the stack trace
             import traceback
             traceback.print_exc()
+        
         finally:
             self.__cleanup_session__(session, auto_commit, reload_after_commit, verbose)
 
@@ -153,25 +151,22 @@ class SessionManager:
                     kwargs["session"] = session
                     result = func(*args, **kwargs)
                     return result
-                except raise_error_types as e:
-                    logging.info("rolling back session...")
-                    session.rollback()
-                    session.close()
-                    raise e
                 
                 
-                except Exception as e:
+                except BaseException as e:
                     logging.info("rolling back session...")
                     session.rollback()
                     session.close()
                     
+                    if raise_error_types and isinstance(e, raise_error_types):
+                        raise e
+                            
                     if raise_on_error:
                         raise e
-                    
+                            
                     # print the stack trace
                     import traceback
-                    traceback_str = traceback.format_exc()
-                    logging.error(traceback_str)
+                    traceback.print_exc()
                     
                 finally:
                     self.__cleanup_session__(session, auto_commit, reload_after_commit, verbose)
@@ -201,6 +196,11 @@ class SessionManager:
                     session.commit()
                 except IntegrityError:
                     logging.info("rolling back session...")
+                    
+                    import traceback
+                    exception_str = traceback.format_exc()
+                    logging.error(exception_str)
+                    
                     session.rollback()
                     session.close()
                     
