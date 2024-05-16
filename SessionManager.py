@@ -67,16 +67,16 @@ class SessionManager:
 
         logging.info("session management called...")
         
-        session: Union[Session | None] = self.__create_session__(verbose=verbose)
+        session: Union[Session | None] = self._create_session(verbose=verbose)
 
         try:
             yield session
         
         except BaseException as e: 
-            self.__error_handler__(e, session, raise_error_types, raise_on_error, verbose)
+            self._error_handler(e, session, raise_error_types, raise_on_error, verbose)
         
         finally:
-            self.__cleanup_session__(session, auto_commit, reload_after_commit, verbose)
+            self._cleanup_session(session, auto_commit, reload_after_commit, verbose)
 
 
     def session_management(self, auto_commit: bool=False, reload_after_commit: bool=None, raise_error_types: Union[Exception, tuple[Exception], None]= None, raise_on_error: bool=False, verbose: Union[int, bool]=logging.ERROR):
@@ -122,7 +122,7 @@ class SessionManager:
                     logging.info("session provided...")
                     return func(*args, **kwargs)
                 
-                session: Session = self.__create_session__(verbose=verbose)
+                session: Session = self._create_session(verbose=verbose)
 
                 try:
                     kwargs["session"] = session
@@ -131,10 +131,10 @@ class SessionManager:
                 
                 
                 except BaseException as e:
-                    self.__error_handler__(e, session, raise_error_types, raise_on_error, verbose)
+                    self._error_handler(e, session, raise_error_types, raise_on_error, verbose)
                     
                 finally:
-                    self.__cleanup_session__(session, auto_commit, reload_after_commit, verbose)
+                    self._cleanup_session(session, auto_commit, reload_after_commit, verbose)
                         
                         
 
@@ -143,7 +143,7 @@ class SessionManager:
         return decorator
     
     @staticmethod
-    def __cleanup_session__(session: Session, auto_commit: bool=False, reload_after_commit: bool=None, verbose: int=logging.ERROR):
+    def _cleanup_session(session: Session, auto_commit: bool=False, reload_after_commit: bool=None, verbose: int=logging.ERROR):
         """
         Cleans up the session after the function is called.
         """
@@ -197,7 +197,7 @@ class SessionManager:
                 pass
     
     @staticmethod    
-    def __error_handler__(e: BaseException, session: Session, raise_error_types: Union[BaseException, tuple[BaseException], None]=None, raise_on_error: bool=False, verbose: int=logging.ERROR):
+    def _error_handler(e: BaseException, session: Session, raise_error_types: Union[BaseException, tuple[BaseException], None]=None, raise_on_error: bool=False, verbose: int=logging.ERROR):
         logging.basicConfig(level=verbose)
         
         logging.info("rolling back session...")
@@ -214,7 +214,7 @@ class SessionManager:
         import traceback
         traceback.print_exc()
             
-    def __create_session__(self, verbose: int = logging.ERROR) -> Session:
+    def _create_session(self, verbose: int = logging.ERROR) -> Session:
         
         logging.basicConfig(level=verbose)
         
