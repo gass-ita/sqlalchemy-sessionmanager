@@ -65,33 +65,15 @@ class SessionManager:
 
         logging.basicConfig(level=verbose)
 
-        if not self.session_maker:
-            raise ValueError("session_maker is not set.")
-        else:
-            logging.info("session_maker is set.")
-
         logging.info("session management called...")
         
-        session: Union[Session | None] = self.session_maker()
-        logging.info("session created...")
+        session: Union[Session | None] = self.__create_session__(verbose=verbose)
 
         try:
             yield session
         
         except BaseException as e: 
-            logging.info("rolling back session...")
-            session.rollback()
-            session.close()
-            
-            if raise_error_types and isinstance(e, raise_error_types):
-                raise e
-                    
-            if raise_on_error:
-                raise e
-                    
-            # print the stack trace
-            import traceback
-            traceback.print_exc()
+            self.__error_handler__(e, session, raise_error_types, raise_on_error, verbose)
         
         finally:
             self.__cleanup_session__(session, auto_commit, reload_after_commit, verbose)
@@ -125,27 +107,22 @@ class SessionManager:
 
         # Set up logging
         if isinstance(verbose, bool):
-            verbose = logging.INFO if verbose else logging.ERROR
+            verbose: int = logging.INFO if verbose else logging.ERROR
+        else:
+            verbose: int = verbose
 
         logging.basicConfig(level=verbose)
 
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
-                if not self.session_maker:
-                    raise ValueError("session_maker is not set.")
-                else:
-                    logging.info("session_maker is set.")
-
                 logging.info("session management called...")
                 
                 if "session" in kwargs and kwargs["session"]:
                     logging.info("session provided...")
                     return func(*args, **kwargs)
-
-                logging.info("session not provided, creating one...")
-                session: Union[Session | None] = self.session_maker()
-                logging.info("session created...")
+                
+                session: Session = self.__create_session__(verbose=verbose)
 
                 try:
                     kwargs["session"] = session
@@ -154,19 +131,7 @@ class SessionManager:
                 
                 
                 except BaseException as e:
-                    logging.info("rolling back session...")
-                    session.rollback()
-                    session.close()
-                    
-                    if raise_error_types and isinstance(e, raise_error_types):
-                        raise e
-                            
-                    if raise_on_error:
-                        raise e
-                            
-                    # print the stack trace
-                    import traceback
-                    traceback.print_exc()
+                    self.__error_handler__(e, session, raise_error_types, raise_on_error, verbose)
                     
                 finally:
                     self.__cleanup_session__(session, auto_commit, reload_after_commit, verbose)
@@ -178,7 +143,7 @@ class SessionManager:
         return decorator
     
     @staticmethod
-    def __cleanup_session__(session: Session, auto_commit: bool=False, reload_after_commit: bool=None, verbose: Union[int, bool]=logging.ERROR):
+    def __cleanup_session__(session: Session, auto_commit: bool=False, reload_after_commit: bool=None, verbose: int=logging.ERROR):
         """
         Cleans up the session after the function is called.
         """
@@ -230,3 +195,36 @@ class SessionManager:
             except InvalidRequestError:
                 logging.info("already closed!")
                 pass
+    
+    @staticmethod    
+    def __error_handler__(e: BaseException, session: Session, raise_error_types: Union[BaseException, tuple[BaseException], None]=None, raise_on_error: bool=False, verbose: int=logging.ERROR):
+        logging.basicConfig(level=verbose)
+        
+        logging.info("rolling back session...")
+        session.rollback()
+        session.close()
+                    
+        if raise_error_types and isinstance(e, raise_error_types):
+            raise e
+                
+        if raise_on_error:
+            raise e
+                
+        # print the stack trace
+        import traceback
+        traceback.print_exc()
+            
+    def __create_session__(self, verbose: int = logging.ERROR) -> Session:
+        
+        logging.basicConfig(level=verbose)
+        
+        if not self.session_maker:
+            raise ValueError("session_maker is not set.")
+        else:
+            logging.info("session_maker is set.")
+            
+        logging.info("session not provided, creating one...")
+        session: Union[Session | None] = self.session_maker()
+        logging.info("session created...")
+        
+        return session
